@@ -8,6 +8,8 @@ By using faster VIDC clock speeds delivered by a VIDC Enhancer, higher screen re
 
 The software is intended to work with RISC OS 2.0x and RISC OS 3.xx to provide the ability to control up to two standard VIDC Enhancers at the same time or a single three oscillator VIDC enhancer. The latter can be used to drive the VIDC chip at up to four different clock speeds when including the original Archimedes VIDC clock signal.
 
+AutoVIDC is also included as part of the [JASPP](https://forums.jaspp.org.uk/forum) ADFFS distribution to provide VIDC clock control for multiple VIDC Enhancer types using a consistent set of SWI calls.
+
 DEVELOPMENT
 ===========
 
