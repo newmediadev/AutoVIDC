@@ -32,7 +32,11 @@ The code is best compiled using the extASM assembler for RISC OS.
 
 ### Released version
 
+Latest version is 2.12
+
 ### Notes
+
+2.12 is the first version added to GitHub
 
 Features
 ========
