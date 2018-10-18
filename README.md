@@ -6,8 +6,12 @@ Introduction
 DEVELOPMENT
 ===========
 
+AutoVIDC is a mature driver for RISC OS 2 and 3 machines that have a VIDC1(a) Video Controller chip in them. It is maintained and bug fixed when required.
+
 TODO File
 =========
+
+Create a RISC OS 3 only version that does not require all the MODE tables, instead relying on only the OS to report the best clock speed for the selected mode.
 
 Contact
 =======
@@ -55,20 +59,14 @@ Version 2.09 - beta release
 * Added clock detection code
 * Added an SWI to query clock availability
 * Re-arranged output for AutoVIDCStatus 
-     ** also indicates whether Aux IO VIDC Enhancer 
-       has been detected or is assumed
+  * also indicates whether Aux IO VIDC Enhancer has been detected or is assumed
 * altered code to use more "local" labels
 * fixed bug in cleanup code for Native Enhancer support
 * removed two "unpredictable" pieces of code
 * Added/Removed TEMP/LOCK compiler directives
-* code optimised to reduce build size - thanks to Jon Abbott 
-     for the quick lesson in optimising ARM code :D
-* fixed a bug when enabling RO control after being disabled 
-     allowing the clock speed to be restored correctly
-* now initiates a call to Service_ModeChange *after* the module
-     has initialised. This addresses an issue where if QTM is
-     playing a module before AutoVIDC has initialised it now
-     correctly adjusts its timings after AutoVIDC has initialised.
+* code optimised to reduce build size - thanks to Jon Abbott for the quick lesson in optimising ARM code :D
+* fixed a bug when enabling RO control after being disabled allowing the clock speed to be restored correctly
+* now initiates a call to Service_ModeChange *after* the module has initialised. This addresses an issue where if QTM is playing a module before AutoVIDC has initialised it now correctly adjusts its timings after AutoVIDC has initialised.
 
 Version 2.08 - beta release
 ------------
@@ -140,7 +138,6 @@ Version 2.00
 Thanks
 ======
 
-*
-*
-*
-*
+* Andreas Barth for writing the original AutoVIDC module and turning over maintenance to myself
+* Jon Abbott - for providing code and advice on writing efficient ARM Assembly Language for RISC OS
+* Steve Harrison - for providing code and advice on writing efficient ARM Assembly Language for RISC OS
