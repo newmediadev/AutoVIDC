@@ -1,0 +1,138 @@
+;AutoVIDC module source - variable definitions
+;---------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+
+; ---------------------------------------------------------------------------
+; Watford Electronics specific vars
+
+.WEEnhancerRMA	DCD	0	; The pointer to the RMA workspace
+.WEIICAddress	DCD	0	; This will either be &40 or &70 once detected
+
+; ---------------------------------------------------------------------------
+; OS related vars
+
+.OS_Version	DCD	0	; Set the OS version
+.UtilityModule
+	DCB	"UtilityModule", 0	; Set up the UtilityModule string
+	ALIGN
+
+.RAM_speed	DCD	0	; The RAM speed of the machine
+
+; ---------------------------------------------------------------------------
+; define the VDU block definition for OS_ReadVduVariables 172
+
+.vdublock
+	DCD	&AC
+	DCD	-1
+
+.vdublockresult
+	DCD	0
+	DCD	0
+	DCD	0
+
+; ---------------------------------------------------------------------------
+; String buffer definition
+
+.buffer
+	DCD	0
+	DCD	0
+	DCD	0
+	DCD	0
+
+; ---------------------------------------------------------------------------
+; Clock detection variables using the SoundDMA to determine VIDC clock speeds
+
+; Set up the clock speeds with sensible defaults
+.detectedClockSpeeds       ;4 words + end declaration
+	DCD	24000
+	DCD	25175
+	DCD	36000
+	DCD	0
+	DCD	-1
+
+.oldSoundDMAsettings        ;5 words
+	DCD	0
+	DCD	0
+	DCD	0
+	DCD	0
+	DCD	0
+
+.soundDMAblock
+	DCD	0
+	DCD	0
+	DCD	0
+	DCD	0
+
+.dmacount
+	DCD	0		; number of SIRQ's in a specific time period
+
+; ---------------------------------------------------------------------------
+; Various flags to indicate properties of the VIDC Enhancer fitted to
+; the machine.
+
+.EnhancerNeeded
+	DCB	1		; Set whether a VIDC Enhancer is required.
+	ALIGN
+
+.EnhancerType
+	DCB	0		; What type of Enhancer are we using?
+	ALIGN
+
+.EnhancerDetected
+	DCB	0
+	ALIGN
+
+.IIC25MHzFitted
+	DCB	0		; If it's a WE Enhancer is it 25 and 36 or just 36MHz?
+	ALIGN
+
+; ---------------------------------------------------------------------------
+; Control flags set by the user
+
+.VIDCEnable
+	DCB	1		; Set whether AutoVIDC is enabled or not.
+	ALIGN
+
+.OCdisable
+	DCB	1		; Set whether we can overclock or not.
+	ALIGN
+
+.ROcontrol
+	DCB	0		; Set whether RISC OS can control the VIDC Enhancer.
+	ALIGN
+
+; ---------------------------------------------------------------------------
+;A list of possible clock speeds in kHz from 24000 to 60000kHz including most of the common clocks that would be used to overclock the VIDC chip.
+
+;The length of this list should match the length of the interruptRanges list below it. The ranges use 1 word to store two values describing a range of interrupts that could fire when testing for the appropriate clock speed.
+.possibleClockSpeeds
+	DCD	24000
+	DCD	25175
+	DCD	31500
+	DCD	32000
+	DCD	36000
+	DCD	40000
+	DCD	48000
+	DCD	50000
+	DCD	60000
+	DCD	24000
+
+.interruptRanges
+; These values require #ticks to be set to 20
+	DCD	&000000A1	;24MHz		- 0-161 interrupts
+	DCD	&00A200AB	;25.175MHz 	- 162-171 interrupts
+	DCD	&00D000D3	;31.5MHz
+	DCD	&00D400D6	;32MHz
+	DCD	&00E800F5	;36MHz 		- 232-245 interrupts
+	DCD	&010A010D	;40MHz 		- 266-269 interrupts
+	DCD	&013E0141	;48MHz		- This is most likely the limit to which the VIDC can be accellerated reliably.
+	DCD	&014B014E	;50MHz 		- VIDC *MUST* be cooled
+	DCD	&018E0191	;60MHz 		- VIDC *MUST* be cooled
+	DCD	-1

@@ -1,0 +1,452 @@
+;AutoVIDC module source - * commands implemetation
+;-------------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; ---------------------------------------------------------------------------
+; AutoVIDCXXmap shows the map of the current settings for each screenmode.
+; The Format is 'Map; <Modenumber>+ <Modenumber>- ...' for all 128 Modes.
+; The + and - shows whether Aux1 is switched or not.
+
+.mapIgnore
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R5,ignoreModes
+     B		map
+
+.mapOC
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R5,ModeListOC
+     B		map
+
+.map36
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R5,ModeList36
+     B		map
+
+.map25
+     STMFD	R13!,{R0-R6,R14}
+     LDR	R5,OS_Version
+     CMP	R5,#RISCOS3
+     ADRLT	R5,ModeList25RO2
+     ADRGE	R5,ModeList25
+     B		map
+
+.mapVGA
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R5,MappedModes
+     ADR	R0,strVGAReadOnly
+     BL		writeStringNewLine
+     SWI	XOS_NewLine
+
+.map
+     ADR	R0,strMap
+     SWI	XOS_Write0
+     MOV	R4,#0			; Modenumber
+
+._stloop1
+     LDR	R6,[R5],#4		; Load first Byte from Map and increment pointer.
+
+._stloop2
+     ; print modenumber
+     MOV	R0,R4
+     BL		convertCardinal2
+     SWI	XOS_Write0
+
+     ; decode map setting
+     MOVS	R6,R6,LSR #1		; shift lowest bit into carry.
+     MOVCC	R0, #ASC("-")		; Use OS_WriteC instead of 2 OS_WriteI to remove "caution" notice of conditional code following SWI call.
+     MOVCS	R0, #ASC("+")
+     SWI	XOS_WriteC              ; Write out + or - to indicate the mode is set or not.
+     SWI	XOS_WriteI + 32		; Write out a space.
+
+     ; finish the loops
+     ADD	R4,R4,#1		; increment modenumber
+     TEQ	R4,#128			; all modes printed ?
+     SWIEQ	XOS_NewLine
+     TEQ	R4,#128			; check again, SWI may corrupt the flags...
+     LDMEQFD	R13!,{R0-R6,PC}		; we've got to the end... so we can return.
+
+     TEQ	R4,#32			; check for boundaries and
+     TEQNE	R4,#64
+     TEQNE	R4,#96
+     BNE	_stloop2
+     BEQ	_stloop1			; get next mapentry.
+
+ ; --------------------------------------------------------------------------
+ ; AutoVIDCXXset <Modenumber><+|-> [...] changes the setting for one or
+ ; more screenmodes to '+'=ON or '-'=OFF.
+
+ ; R0 - SWI var & pointer to string -> R1
+ ; R1 - SWI var & number of parameters -> R4
+ ; R2 - max value
+ ; R3 - value of current MODE bit
+ ; R4 - Number of parameters left to process.
+ ; R5 - Next part of the Mode List
+ ; R6 - Mode List
+
+.SetIgnore
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R6,ignoreModes
+     B		Set
+
+.SetOC
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R6,ModeListOC
+     B		Set
+
+.Set36
+     STMFD	R13!,{R0-R6,R14}
+     ADR	R6,ModeList36
+     B		Set
+
+.Set25
+     STMFD	R13!,{R0-R6,R14}
+     LDR	R6,OS_Version
+     CMP	R6,#RISCOS3
+     ADRLT	R6,ModeList25RO2
+     ADRGE	R6,ModeList25
+
+.Set
+     MOV	R4,R1			; number of parameters
+     MOV	R1,R0			; pointer to string
+
+._setloop
+     TEQ	R4,#0			; any parameters left ?
+     BEQ	_reinitNewMap
+
+     SUB	R4,R4,#1		; decrement parameters.
+
+     ; Scan for modenumber
+     MOV	R0,#ReadUnsignedFlags	; base; R1 is still pointing to next argument.
+     MOV	R2,#127			; maximum value
+
+     SWI	XOS_ReadUnsigned
+     BVS	_returnSetModeError
+
+     CMP	R2,#128			; is it a valid value ?
+     ADDCS	R1,R1,#1
+     BCS	_setloop			; No, then ignore
+
+     ; Get the mode-bit ready
+     MOV	R0,R6			; Get Tablebase.
+     ADD	R0,R0,R2,LSR #3		; Tablebase + (Mode /32*4)
+     BIC	R0,R0,#3		; Clear lowest 2 Bits.
+     LDR	R5,[R0]			; get this part of Table
+     MOV	R3,#1			; This is our bit for that entry,
+     AND	R2,R2,#31		; mask shift amount
+     MOV	R3,R3,LSL R2		; shift our bit to correct position.
+
+     ; Check the sign for '+' or '-'
+     LDRB	R2,[R1]			; load the signal-character
+     TEQ	R2,#ASC("+")		; and decide....
+     ORREQ	R5,R5,R3		; ...Set the bit to one.
+     TEQ	R2,#ASC("-")		; or
+     BICEQ	R5,R5,R3		; ...Reset the bit to zero.
+
+     ; Store the mode-bit again
+     STR	R5,[R0]
+     ADD	R1,R1,#1		; Increment string-pointer for next parameter.
+     B		_setloop
+
+._reinitNewMap
+	BL	AutoVIDC_ReInitSWI	; do a new init, maybe we changed...
+	LDMFD 	R13!,{R0-R6,PC}		; No parameters so return
+
+._returnSetModeError
+	LDMFD	R13!,{R0-R6,R14}
+
+	MOV	R0,#1<<31		; Set V-flag and return
+	ADDS	R0,R0,R0
+	ADR	R0,seterror		; Load up the error message.
+	MOV	PC,R14
+
+; ---------------------------------------------------------------------------
+; Provide support for * commands for Enabling and Disabling of features
+
+.disableVIDC
+     STMFD	R13!,{R0,R14}
+     MOV	R0,#0
+     STRB	R0,VIDCEnable		; Set the VIDCEnable latch to 0
+     BL		AutoVIDC_SetClockSWI
+     LDMFD	R13!,{R0,PC}
+
+.enableVIDC
+     STMFD	R13!,{R0,R14}
+     LDRB	R0,EnhancerNeeded
+     TEQ	R0,#1
+     LDMNEFD	R13!,{R0,PC}
+     STRB	R0,VIDCEnable		; set the VIDCEnable latch to 1
+     BL		AutoVIDC_ReInitSWI	; re-initialise AutoVIDC
+     LDMFD	R13!,{R0,PC}
+
+.disableOC
+     STMFD	R13!,{R0,R14}
+     MOV	R0,#1
+     STRB	R0,OCdisable		; set the disableOC latch to 1
+     BL		AutoVIDC_ReInitSWI	; re-initialise AutoVIDC
+     LDMFD	R13!,{R0,PC}
+
+.enableOC
+     STMFD	R13!,{R0,R14}
+     MOV	R0,#0
+     STRB	R0,OCdisable		; set the disableOC latch to 0
+     BL		AutoVIDC_ReInitSWI	; re-initialise AutoVIDC
+     LDMFD	R13!,{R0,PC}
+
+; ---------------------------------------------------------------------------
+; manually set the clock speed of the over clocking oscillator...
+
+.setOCkHz
+     STMFD	R13!,{R0-R2,R14}
+     MOV	R1,R0			; pointer to string
+
+     MOV	R0,#ReadUnsignedFlags	; base; R1 is still pointing to next argument.
+     MOV	R2,#VIDCclkMAX		; maximum value 60MHz
+
+     SWI	XOS_ReadUnsigned
+     BVS	_clockSpeedTooHigh
+     ADR	R0,detectedClockSpeeds+12
+     STR	R2,[R0]
+     LDMFD	R13!,{R0-R2,PC}
+
+._clockSpeedTooHigh
+     MOV	R0,#1
+     STRB	R0,OCdisable			; set the disableOC latch to 1
+     LDMFD	R13!,{R0-R2,R14}		; if we're here, the clock speed is *way too high*
+     MOV	R0,#1<<31			; Set V-flag and return
+     ADDS	R0,R0,R0
+     ADR	R0,clockTooHigh			; Load up the error message.
+     MOV	PC,R14
+
+; ---------------------------------------------------------------------------
+; Disable and Enable RISC OS control of mode selection on earlier Arc's
+
+.disableROcontrol
+     STMFD	R13!,{R0-R1,R14}
+     MOV	R0,#0
+     STRB	R0,ROcontrol		; set the enableROcontrol latch to 0
+     LDMFD	R13!,{R0-R1,PC}
+
+.enableROcontrol
+     STMFD	R13!,{R0,R14}
+     LDR	R0,OS_Version		; What OS are we?
+     CMP	R0,#RISCOS3
+     BLT	_exitROcontrol		; If we're RO2.xx exit
+     MOV	R0,#1
+     STRB	R0,ROcontrol		; set the enableROcontrol latch to 1
+
+     BL		AutoVIDC_ReInitSWI	; re-initialise AutoVIDC
+._exitROcontrol
+     LDMFD	R13!,{R0,PC}
+
+; ---------------------------------------------------------------------------
+; Toggle the long memory POST tests on RISC OS 3. Not convinced Acorn ever implemented this...
+
+.toggleVIDCPost
+     STMFD	R13!,{R0-R3,R14}
+
+     MOV	R0,#161			; Read the CMOS RAM to see what the byte is set to
+     MOV	R1,#188
+     SWI	XOS_Byte		; returns the byte in R2
+
+     MOV	R0,#162			; Prepare to write the value back.
+     MOV	R1,#188
+     MOV	R3,#128			; We want to OR the value with 128
+     EOR	R2,R2,R3
+     SWI	XOS_Byte
+     LDMFD	R13!,{R0-R3,PC}
+
+ ; --------------------------------------------------------------------------
+ ; Change the screen mode
+
+.AutoVIDC_Mode
+	STMFD	R13!,{R0-R3,R14}
+        MOV	R1,R0
+
+        MOV	R0,#ReadUnsignedFlags	; base; R1 is still pointing to next argument.
+	MOV	R2,#127			; maximum value 127
+	SWI	XOS_ReadUnsigned
+	BVS	_noModeChange
+
+      	MOV	R0,#&16
+      	SWI	OS_WriteC
+      	MOV	R0,R2
+      	SWI	OS_WriteC
+	LDMFD	R13!,{R0-R3,PC}
+
+._noModeChange
+	LDMFD	R13!,{R0-R3,R14}
+
+	MOV	R0,#1<<31			; Set V-flag and return
+	ADDS	R0,R0,R0
+	ADR	R0,setModeError			; Load up the error message.
+	MOV	PC,R14
+
+; ---------------------------------------------------------------------------
+ ; Report back the relevant system details as AutoVIDC sees things...
+
+.VIDCStatus
+	STMFD	R13!,{R0-R2,R14}
+
+; -------------------------------------------------------
+; Output the detected VIDC Enhancer type and whether it was detected or is assumed.
+; -------------------------------------------------------
+	LDRB	R1,EnhancerType
+	ADR	R0,strNativeEnhancer
+	TEQ	R1,#WatfordType
+	ADREQ	R0,strWatford
+	TEQ	R1,#AuxIOType
+	ADREQ	R0,strAuxIO
+	SWI	XOS_Write0
+	ADR	R0,strVIDCEnhancer
+	SWI	XOS_Write0
+	LDRB	R1,EnhancerDetected
+	CMP	R1,#0
+	ADREQ	R0,strAssumed
+	ADRNE	R0,strDetected
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Output the monitor type and whether mode mapping is enabled
+; -------------------------------------------------------
+	MVN	R1,#0			; MonitorType should be 0 to 5, set to -1 for UNKNOWN...
+	LDR	R0,OS_Version
+	CMP	R0,#RISCOS3		; If we're RO2, the monitor type is "unknown"
+	BLT	_outputMonType
+
+; Get the MonitorType (>=RO3.00)
+	MOV	R0,#1			; Read configured WimpMode, MonitorType and Sync.
+	SWI	XOS_ReadSysInfo		; (doesn't exist under RO2)
+
+._outputMonType
+	ADR	R0,strMontype
+	SWI	XOS_Write0
+
+	CMN	R1,#1			; Check to see if the monitor type is known
+	ADREQ	R0,unknownMonitor
+	TEQ	R1,#0
+	ADREQ	R0,TVMonitor
+	TEQ	R1,#1
+	ADREQ	R0,Multiscan
+	TEQ	R1,#2
+	ADREQ	R0,Mono
+	TEQ	R1,#3
+	ADREQ	R0,VGAMonitor
+	TEQ	R1,#4
+	ADREQ	R0,SVGAMonitor
+	TEQ	R1,#5
+	ADREQ	R0,LCDMonitor
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; If we know the MonitorType, we can say if mode mapping is enabled.
+; -------------------------------------------------------
+	ADR	R0,strModemapping
+	SWI	XOS_Write0
+
+	ADR	R0,strDisabled
+	TEQ	R1,#3
+ 	TEQNE	R1,#4
+	ADREQ	R0,strEnabled
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Output the current screen MODE
+; -------------------------------------------------------
+	ADR	R0,strCurrentMode
+	SWI	XOS_Write0
+
+	BL	getCurrentMode
+
+	MOV	R0,R2
+	BL	convertCardinal2
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Output the current detected clock speed.
+; -------------------------------------------------------
+ ; Lets ask what the clock speed is set to.
+	ADR	R0,strVIDCClk
+	SWI	XOS_Write0
+	MVN	R0,#0			; If we pass in a value other than 0 to 3...
+	BL	AutoVIDC_SetClockSWI	; the SWI returns 0, 1, 2, or 3 depending on the clock speeds which are 24, 25.175, 36 and overclocked respectively.
+
+	MOV	R1,R0,LSL#2
+	ADR	R0,detectedClockSpeeds
+	LDR	R0,[R0,R1]
+	BL	convertCardinal2
+	SWI	XOS_Write0
+	ADR	R0,strkHz
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Output the state of AutoVIDC
+; -------------------------------------------------------
+	ADR	R0,strAutoVIDCState
+	SWI	XOS_Write0
+	ADR	R0,VIDCEnable
+	LDR	R1,[R0]
+	TEQ	R1,#1
+	ADREQ	R0,strEnabled
+	ADRNE	R0,strDisabled
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Output the status of the VIDC POST check in the CMOS.
+; -------------------------------------------------------
+ 	ADR	R0,strVIDCPost
+	SWI	XOS_Write0
+
+	MOV	R0,#161
+	MOV	R1,#188
+	SWI	XOS_Byte
+
+	AND	R1,R2,#128
+	TEQ	R1,#128
+	ADREQ	R0,strDisabled
+	ADRNE	R0,strEnabled
+	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Some useful bits and pieces for testing/debugging
+; -------------------------------------------------------
+
+; -------------------------------------------------------
+; Output the RAM speed
+; -------------------------------------------------------
+;	LDR	R0,RAM_speed
+;	BL	convertCardinal2
+;	BL	writeStringNewLine
+
+; -------------------------------------------------------
+; Output the detected clock speeds...
+; -------------------------------------------------------
+;	ADR	R1,detectedClockSpeeds
+;	MOV	R2,#0
+;._loopoutput
+;	LDR	R0,[R1],#4
+;	BL	convertCardinal2
+;	BL	writeStringNewLine
+;	ADD	R2,R2,#1
+;	TEQ	R2,#4
+;	BNE	_loopoutput
+
+	LDMFD	R13!,{R0-R2,PC}
+
+.writeStringNewLine
+	STMFD	R13!,{R14}
+	SWI	XOS_Write0
+	SWI	XOS_NewLine
+	LDMFD	R13!,{PC}
+
+.convertCardinal2
+	STMFD	R13!,{R1-R2,R14}
+	ADR	R1,buffer
+	MOV	R2,#12
+	SWI	XOS_ConvertCardinal2
+	LDMFD	R13!,{R1-R2,PC}

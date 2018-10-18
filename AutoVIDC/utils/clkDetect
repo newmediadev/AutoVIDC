@@ -1,0 +1,256 @@
+;AutoVIDC module source - Clock Detection
+;----------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; ---------------------------------------------------------------------------
+; Test presence and read speed of VIDC enhancers
+; This function is adapted with permission from the
+; BASIC Assembly version v0.01 (c) S.Harrison 2013
+;
+; Adapted version works for all VIDC clock hardware
+
+; A side effect of the code is that the user will see
+; the screen blanking briefly during the test before
+; it is restored as the clocks are selected in turn
+
+.checkEnhancerClocks
+	TEMP	R11-R12
+	STMFD	R13!,{R0-R10,R14}
+
+	MOV	R0,#0			; enable the over clocking capabilities
+	STRB	R0,OCdisable
+	MVN	R0,#0			; grab the current clock speed
+	BL	AutoVIDC_SetClockSWI
+	MOV	R10,R0			; store the current clock speed for restoration later...
+
+;set up the locations for the soundDMAblock *dynamically*
+	ADR	R8,handleraddr
+	STR	R8,soundDMAblock
+	ADR	R8,overruncode
+	STR	R8,soundDMAblock+4
+
+; initialise the interrupt handler
+	BL	_setuptempsoundDMA
+
+; set up the empty dectectedClockSpeeds list and the loop counter
+	ADR	R7,detectedClockSpeeds
+	MOV	R8,#0
+
+._testloop
+	MOV	R0,R8			; Load R0 with current clock value
+ 	BL	AutoVIDC_SetClockSWI
+
+
+; now we need to time the number of IRQ's in a given period to determine the clock speed.
+	SWI	OS_ReadMonotonicTime
+	ADD	R6,R0,#2		;need to wait for couple of 'ticks' of timer
+
+._waitstarttime
+	SWI	OS_ReadMonotonicTime
+	CMP	R0,R6
+	BLT	_waitstarttime
+	ADD	R6,R0,#ticks		;R6=end time = 100/ticks of a second later
+	MOV	R0,#0
+	STR	R0,dmacount
+
+._waitendtime
+	SWI	OS_ReadMonotonicTime
+	CMP	R0,R6
+	BLT	_waitendtime
+
+	LDR	R0,dmacount
+
+; Store the value of R0 in the array
+	STR	R0,[R7],#4		;store no. of ints while at this setting and increment the pointer by 4
+
+	ADD	R8,R8,#1		; increment the loop counter.
+	TST	R8,#3			; have we gone over the 4 settings?
+	BNE	_testloop		; no, so loop back...
+
+
+	BL	_removetempsoundDMA	; remove the interrupt handler
+	BL	_convertClockSpeeds	; convert the clock speeds to kHz...
+
+; convertClockSpeeds returns a clock speed in R0.
+; If it is over 24000 kHz then we can say we've detected a
+; VIDC Enhancer.
+; This works for all software controlled VIDC Enhancers.
+        CMP	R0,#VIDCclkMIN
+	MOVGT	R0,#1
+	STRGTB	R0,EnhancerDetected
+
+;reset everything to the defaults..
+	MOV	R0,#1
+	STRB	R0,OCdisable
+
+; reset the clock speed to what it was in the beginning...
+	MOV	R0,R10
+	BL	AutoVIDC_SetClockSWI
+
+	LDMFD	R13!,{R0-R10,PC}	;exit
+
+; ---------------------------------------------------------------------------
+; Configure the SoundDMA for VIDC clock speed detection
+
+._setuptempsoundDMA
+	STMFD	R13!,{R0-R6,R14}
+	MOV	R0,#1			;1 channel, so setting uS ok on RO2
+	MOV	R1,#208
+	MOV	R2,#0
+	ADR	R3,soundDMAblock
+	MOV	R4,#0
+	SWI	XSound_Configure
+
+	ADR	R5,oldSoundDMAsettings
+	STMIA	R5,{R0-R4}
+
+	MOV	R1,#VIDCbase		;R1 = VIDC base
+	MOV	R0,#uS_vidc
+	ORR	R0,R0,#&C0000100
+	STR	R0,[R1]
+
+	LDMFD	R13!,{R0-R6,PC}
+
+; ---------------------------------------------------------------------------
+; Restore the SoundDMA settings after VIDC clock detection
+
+._removetempsoundDMA
+	STMFD	R13!,{R0-R6,R14}
+	LDR	R0,OS_Version
+	CMP	R0,#RISCOS3
+
+	ADR	R5,oldSoundDMAsettings
+	LDMIA	R5,{R0-R4}
+	BLT	_doOS2setsound		;OS 2 bug - only sets sample speed if < chans*15.75!
+
+ 	SWI	XSound_Configure	;should be fine on OS3
+	LDMFD	R13!,{R0-R6,PC}
+
+._doOS2setsound
+	MOV	R6,R3			;copy of handler
+	MOV	R5,R0			;copy of channels
+	MOV	R0,#1			;can only restore uS correctly if 1 channel on OS2
+	MOV	R3,#0			;don't set handler yet
+	SWI	XSound_Configure	;restores dma size and uS
+
+	MOV	R0,R5
+	MOV	R1,#0
+	MOV	R2,#0
+	MOV	R3,R6
+	MOV	R4,#0
+	SWI	XSound_Configure	;restores channels and handler
+	LDMFD	R13!,{R0-R6,PC}
+	LOCK	R11-R12
+
+; ---------------------------------------------------------------------------
+; Interrupt number conversion code...
+
+._convertClockSpeeds
+;R0=number of interrupts
+;R1=lower limit
+;R2=upper limit
+;R3=clock speed
+;R4=interrupt range
+;R5=clockspeeds
+;R6=interrupt ranges
+;R7=pointer to current clocks
+;R8=The last detected clock speed...
+
+	TEMP R11-R12
+
+	STMFD	R13!,{R1-R8,R14}
+; Get the first clock speed...
+	MOV	R8,#0
+	ADR	R7,detectedClockSpeeds
+	LDR	R0,[R7]
+
+._checkClocks
+;Set up pointers to the clock speeds and interrupt ranges
+	ADR	R5,possibleClockSpeeds
+	ADR	R6,interruptRanges
+
+._checkRange
+;Grab the first clock speed and interrupt range
+	LDR	R3,[R5],#4
+	LDR	R4,[R6],#4
+
+;if the range isn't a range, we've checked all the ranges available...
+	CMN	R4,#1
+	BEQ	_noClockFound
+
+;break up the range into two values, R1 amd R2
+	AND	R2,R4,#&FFFF
+	MOV	R4,R4,LSR#16
+	AND	R1,R4,#&FFFF
+
+;if it is a range then check to see if our interrupts are within the range
+	CMP	R0,R1
+	RSBGES	R14,R0,R2
+	BLGE	_storeClock
+	BLT	_checkRange
+
+._noClockFound
+;get the next clock speed
+	ADD	R7,R7,#4	; increment the pointer
+	LDR	R0,[R7]         ; grab the content of the address
+	CMN	R0,#1
+	BNE	_checkClocks
+
+;If we're here we've done everything and should have converted all the clocks...
+
+	MOV	R0,R8		; R8 should contain a clock speed >=24000kHz
+	LDMFD	R13!,{R1-R8,PC}
+
+; a little function to see if the data has already got an entry in the EnhancerList, if so, it's a duplicate so set it to 0
+._storeClock
+
+; we want to preserve R0 and R1, all the other registers are in use by the calling function and we can reference them here...
+	STMFD	R13!,{R0-R1,R14}
+
+	ADR	R0,detectedClockSpeeds	;Check for duplicates in the list
+	LDR	R1,[R0]			;Entry 1 (24MHz)
+	TEQ     R3,R1
+	LDRNE	R1,[R0,#4]		;Entry 2 (25.175MHz OR higher)
+        TEQNE	R3,R1
+	LDRNE	R1,[R0,#8]		;Entry 3 (36MHz OR higher)
+	TEQNE	R3,R1
+	LDRNE	R1,[R0,#12]		;Entry 4 (OC < 60MHz)
+	TEQNE	R3,R1
+	STRNE	R3,[R7]			;Store it if it's new
+	MOVNE	R8,R3			;Store this clock speed in R8 so we can tell if a VIDC Enhancer has been detected :D
+; Comment the following line of code out if you want to see the number of interrupts fired for the non-detected clock...
+	MOVEQ	R1,#0			;Store 0 if we've seen it before...
+	STREQ	R1,[R7]
+
+	LDMFD	R13!,{R0-R1,PC}
+
+	LOCK	R11-R12
+
+; ---------------------------------------------------------------------------
+; Interrupt handler code.
+; It increments the dmacounter every time it is called.
+
+.handleraddr
+	TEMP	R11-R12
+	STMFD	R13!,{R1,R9}
+	LDR	R9,dmacount
+	ADD	R9,R9,#1
+	STR	R9,dmacount
+
+; Override RISC OS resetting the VIDC control register
+	MOV	R1,#VIDCbase		;R1 = VIDC base
+	MOV	R9,#uS_vidc
+	ORR	R9,R9,#&C0000100
+	STR	R9,[R1]
+	LDMFD	R13!,{R1,R9}
+
+.overruncode
+	MOV	PC,R14
+
+	LOCK	R11-R12
+

@@ -1,0 +1,22 @@
+;AutoVIDC module source - SWI Names
+;----------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; List the SWI function names for publication.
+
+.AutoVIDC_SWI_Names
+	DCB "AutoVIDC", 0
+	DCB "SetClock", 0
+	DCB "DelegateControl", 0
+	DCB "IsDelegated", 0
+	DCB "IsOverClockingEnabled", 0
+	DCB "ModeSyncPolarity", 0
+	DCB "ReInit", 0
+	DCB "ClockAvailable", 0
+	DCB "EnhancerPresent", 0
+	DCB "EnhancerType", 0

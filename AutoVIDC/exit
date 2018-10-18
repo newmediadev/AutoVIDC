@@ -1,0 +1,21 @@
+;AutoVIDC module source - Module finalisation
+;---------------------------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+.AutoVIDC_Finalise
+	STMFD 	R13!,{R0-R2, R14}
+	ADR	R0,AutoVIDC_Initialised		; Unlikely as it should have already been removed
+	MOV	R1,#0				; but remove this event from the ticker queue
+	SWI	OS_RemoveTickerEvent		; if it hasn't fired and we're quitting.
+
+	LDR	R0,WEEnhancerRMA 		; Check to see if we have any RMA
+	CMP	R0,#0
+	MOVNE	R2,R0                           ; If we do, we need to free it...
+	MOVNE	R0,#Module_Free                 ; PRM 1-234
+	SWINE	XOS_Module
+	LDMFD	R13!,{R0-R2, PC}		; ... and exit!

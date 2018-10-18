@@ -1,0 +1,34 @@
+;AutoVIDC module source - SWI lookup table
+;-----------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; The lookup table to handle the different SWI calls that AutoVIDC provides.
+; The call is passed in R11, we check the value and branch accordingly.
+
+.AutoVIDC_SWI
+
+	ADR	R12,_SWI_jump_table
+	CMP	R11,#(_SWI_jump_table_end - _SWI_jump_table -4)/4
+	ADDLS	PC, R12, R11, LSL #2
+	TEQ	PC, PC
+	MOVEQ	PC, R14
+	MOVS	PC, R14
+
+._SWI_jump_table
+
+	B	AutoVIDC_SetClockSWI
+	B	AutoVIDC_DelegateControlSWI
+	B	AutoVIDC_IsDelegatedSWI
+	B	AutoVIDC_IsOverClockingEnabledSWI
+	B	AutoVIDC_ModeSyncPolaritySWI
+	B	AutoVIDC_ReInitSWI
+	B	AutoVIDC_ClockAvailableSWI
+	B	AutoVIDC_EnhancerPresentSWI
+	B	AutoVIDC_EnhancerTypeSWI
+
+._SWI_jump_table_end

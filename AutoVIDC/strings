@@ -1,0 +1,105 @@
+;AutoVIDC module source - String definitions
+;-------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; Set up some string definitions...
+
+.VIDC1aSupportOnly
+	DCD 0
+	DCB "AutoVIDC only supports Acorn Archimedes computers fitted with a VIDC1(a) chip", 0
+	ALIGN
+
+.seterror
+	DCD 0
+	DCB "Bad data in command string", 0
+	ALIGN
+
+.setModeError
+	DCD 0
+	DCB "Mode must be between 0 and 127", 0
+	ALIGN
+
+.clockTooHigh
+	DCD 0
+	DCB "WARNING: A maximum of a 60MHz (60000kHz) oscillator is supported.", 0
+	ALIGN
+
+.strMap
+	DCB "Map: ", 0
+
+.strVGAReadOnly
+	DCB "This map is READ ONLY and only used with (S)VGA monitor types.", 0
+
+.strMontype
+	DCB "Monitor type is ", 0
+
+.strEnabled
+	DCB "enabled", 0
+
+.strDisabled
+	DCB "disabled", 0
+
+.unknownMonitor
+	DCB "unknown", 0
+
+.TVMonitor
+	DCB "50Hz TV", 0
+
+.Multiscan
+	DCB "Multiscan", 0
+
+.Mono
+	DCB "64Hz hi-res mono", 0
+
+.VGAMonitor
+	DCB "VGA", 0
+
+.SVGAMonitor
+	DCB "SVGA", 0
+
+.LCDMonitor
+	DCB "LCD", 0
+
+.strModemapping
+	DCB "MODE mapping is ", 0
+
+.strCurrentMode
+	DCB "Current MODE is ", 0
+
+.strAutoVIDCState
+	DCB "AutoVIDC is ", 0
+
+.strVIDCClk
+	DCB "VIDC clock is ", 0
+
+.strkHz
+	DCB "kHz", 0
+
+.strVIDCPost
+	DCB "VIDC POST check is ", 0
+
+.strVIDCEnhancer
+	DCB "VIDC Enhancer", 0
+
+.strWatford
+	DCB "WE ", 0
+
+.strAuxIO
+	DCB "Aux I/O ", 0
+
+.strNativeEnhancer
+	DCB "Acorn ", 0
+
+.strDetected
+	DCB " detected", 0
+
+.strAssumed
+	DCB " assumed", 0
+
+ALIGN

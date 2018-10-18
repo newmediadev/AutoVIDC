@@ -1,0 +1,175 @@
+;AutoVIDC module source - Module initialisation and finalisation
+;---------------------------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; Check the Hardware.
+;
+; We can only run on hardware with a VIDC1a chip installed.
+; Otherwise we fuddle in unknown hardware.
+; RO2.xx and RO3.1x are supported.
+; We need to check if the Arc has native Acorn, WE or Aux IO VIDC Enhancement.
+.AutoVIDC_Initialise
+	TEMP	R7-R11
+	STMFD	R13!,{R0-R6,R14}
+
+;Check the OS...
+	MOV	R0,#Module_Lookup		; check OS version
+	ADR	R1,UtilityModule		; ..via UtilityModule version
+	SWI	XOS_Module			; PRM 1-249
+
+	MOV	R0,#Module_Enumerate		; request module version
+	MVN	R2,#0
+	MOV	R6,#RISCOS2			; Force RO 2.00 as it will fail below RO3.00 (possibly RO2.01)
+	SWI	XOS_Module			; PRM 1-248
+
+	STR	R6,OS_Version			; Store the OS version
+	CMP	R6,#RISCOS3			; RO3 or above
+	MOVGE	R0,#1
+	STRGEB	R0,ROcontrol			; RISC OS can control the VIDC Enhancer.
+	BLT	_chkRAMspeed			; but RO2 is okay and we can run a VIDC Enhancer
+
+; If we're here, we're RO2.01 or above and need to check some other hardware.
+
+;First, check if a VIDC1 chip is fitted.
+	MOV	R0,#2				; Read Chip presence and ID.
+	SWI	XOS_ReadSysInfo			; (doesn't exist under RO2) PRM 1-722
+; Under RO3.5 and above, the high byte of R0 is VIDC1a=0, VIDC20=1
+	AND	R0,R0,#&ff000000		; Is the hardware VIDC1?
+	TEQ	R0,#0				; R0 should be 0 if it is
+	BEQ	_chkRAMspeed
+
+;If we're here, VIDC1 is not fitted to the hardware we're running on so exit gracefully.
+
+	LDMFD	R13!,{R0-R6,R14}		; if we're here, we don't need a VIDC Enhancer...
+	MOV	R0,#1<<31			; Set V-flag and return
+	ADDS	R0,R0,R0
+	ADR	R0,VIDC1aSupportOnly		; Load up the error message.
+	MOV	PC,R14
+
+; Reads from zero page to determine RAM speed. Only 8MHz memory bus systems require a VIDC Enhancer.
+; If someone overclocks their RAM beyond 8MHz then AutoVIDC won't enable...
+._chkRAMspeed
+	MOV	R1,#zpRAMspeed			; ZP RAM speed location &110
+	LDR	R0,[R1]				; Read RAM speed
+	STR	R0,RAM_speed
+	AND	R0,R0,#&FF00
+	CMP	R0,#8192			; 8000 - 8500 for wiggle room
+	BLT	_needsVIDCEnhancer		; If 8500 is higher than the RAM speed...
+
+; If we're here, we're pretty sure its an A540 or higher...
+; So we need to permanently disable the VIDC Enhancer but still run...
+
+	MOV	R0,#NativeType			; Native Type is 0.
+	STRB	R0,EnhancerNeeded		; Enhancer not needed
+	STRB	R0,VIDCEnable                   ; AutoVIDC service disabled
+	STRB	R0,EnhancerType			; Enhancer Type 0.
+
+; We can now proceed knowing that the VIDC Enhancer
+; cannot be enabled even with the * commands...
+; The SWI however will still continue to work...
+
+	B	_detectionComplete
+
+._needsVIDCEnhancer
+; WE Super Enhancer detection...
+	LDR	R2,WEEnhancerRMA		; Do we have RMA already?
+	TEQ	R2,#0
+	BNE	_checkForWEEnhancer		; yes, skip the RMA request
+
+	MOV	R0,#Module_Claim		; Let's claim some RMA
+	MOV	R3,#&40				; 64 bytes to be precise
+	SWI	XOS_Module                      ; PRM 1-233
+	LDMVSFD R13!,{R0-R6,PC}                 ; ... so quit
+	STR	R2,WEEnhancerRMA		; Store the pointer to the RMA workspace
+
+._checkForWEEnhancer
+	MOV	R0,#&41				; I2C read address &41
+	LDR	R1,WEEnhancerRMA                ; memory pointer to RMA workspace
+	MOV	R2,#1                           ; 1 byte being passed
+	SWI	XIIC_Control
+	MOVVC	R0,#IICAddress_Watford_VIDC_Extender1	; Type 1 WE VIDC Enhnacer detected
+        STRVC	R0,WEIICAddress			; Store the address
+        BVC	_foundWEEnhancer
+
+        MOV	R0,#&71				; I2C read address &71
+        LDR	R1,WEEnhancerRMA
+        MOV	R2,#1                           ; 1 byte of data
+        SWI	XIIC_Control
+        MOVVC	R0,#IICAddress_Watford_VIDC_Extender2	; Type 2 WE VIDC Enhancer detected
+        STRVC	R0,WEIICAddress			; Store the address
+	BVS	_noWEEnhancer
+
+._foundWEEnhancer
+	MOVEQ	R0,#WatfordType			; Set the EnhancerType
+	STREQB	R0,EnhancerType			; Store it.
+
+; Now we need to test for 25.175MHz and 36MHz clocks on the WE Enhancer.
+
+	LDR	R6,WEIICAddress			; Let's see if the 25MHz oscillator is present...
+	ADD	R0,R6,#1			; Let's read the content of the WE VIDC Enhancer register
+	LDR	R1,WEEnhancerRMA
+	MOV	R2,#1
+	SWI	IIC_Control
+	LDRB	R4,[R1,#0]			; Save the register content in R4
+
+	ADD	R0,R6,#0			; Reset R0 to write to the Enhancer
+	MOV	R3,#&FF
+	STR	R3,[R1, #0]			; WEEnhancerRMA
+	MOV	R2,#1
+	SWI	IIC_Control			; Write to the WE VIDC Enhancer
+
+	ADD	R0,R6,#1			; Read the value back
+	MOV	R2,#1
+	SWI	IIC_Control
+
+	LDRB	R3,[R1,#0]			; Grab the result
+	TST	R3,#&20				; Is bit 6 set?
+	MOVEQ	R3,#0                           ; Yes,
+	MOVNE	R3,#1                           ; No,
+	STRB	R3,IIC25MHzFitted		; Store the type of Enhancer
+
+	ADD	R0,R6,#0			; Reset the WE Enhancer to the original value.
+	STR	R4,[R1,#0]			; WEEnhancerRMA
+	MOV	R2,#1
+	SWI	IIC_Control			; Write to the WE VIDC Enhancer
+	B	_detectionComplete
+
+; If we're here, no WE Enhancer is fitted so default to an Aux IO enhancer.
+._noWEEnhancer
+	CMPVS	R0,R0				; We need to reset the overflow flag if the WE detection code has run
+	MOV	R0,#AuxIOType			; If it's an Aux IO enhancer say so.
+	STRB	R0,EnhancerType			; Store it.
+
+._detectionComplete
+; We're here and we know what type of VIDC Enhancer is fitted, now check what clock speeds are available...
+	BL	checkEnhancerClocks		; Test for the Enhancer and clock speeds...
+
+	BL	AutoVIDC_doService		; We need to run through the service handler to set the clock
+
+; If we're not a Native Enhancer, it's likely we modified the clock
+; on initialisation so we need to issue a Service_ModeChange event.
+	LDR	R0,EnhancerType
+	CMP	R0,#NativeType
+	MOVNE	R0,#4
+	ADRNE	R1,AutoVIDC_Initialised		; Call this funcion after 2 ticks
+	MOVNE	R2,#0
+	SWINE	OS_CallAfter			; Add to the ticker event list
+
+	LDMFD	R13!,{R0-R6,PC}			; exit...
+	LOCK	R7-R11
+
+; ---------------------------------------------------------------------------
+; Handler code for the OS_CallAfter SWI event ticker to jump to...
+
+.AutoVIDC_Initialised
+	STMFD	R13!,{R0-R12,R14}		; We *MUST* preserve *ALL* registers
+	MOV	R1,#Service_ModeChange
+	SWI	OS_ServiceCall                  ; Broadcast a Service_ModeChange...
+
+	LDMFD	R13!,{R0-R12,PC}		; Restore *ALL* registers and prepare to exit...

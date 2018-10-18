@@ -1,0 +1,100 @@
+;AutoVIDC module source - constants definitions
+;----------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; Set up some values for requests to
+; evaluate the UtilityModule version
+
+; ---------------------------------------------------------------------------
+#set	ReadUnsignedFlags	= %00100000000000000000000000001010
+
+; Set up some OS version boundaries
+
+#set	RISCOS3		= &30000
+#set	RISCOS2		= &20000
+
+; ---------------------------------------------------------------------------
+
+#set	zpRAMspeed	= &110
+
+; Set up some default values for the Aux IO hardware
+; and default the module to being enabled but with
+; the over-clocking facility being disabled.
+
+#set 	LatBShadow	= &105		; contains Value of LatchB - zero page SoftCopy
+#set	LatchB		= &03350018	; Hardware address of LatchB
+
+#set	VIDCLatch	= &03350048	; Hardware address of the VIDC registers
+
+#set	VIDCbase	= &03400000	; VIDC Base address
+
+#set	VIDCclockspeed	= &1228		; Stores a copy of the VIDC clock speed in kHz
+
+#set	VIDCControlCopy = &1584		; Stores a copy of the VIDC control register
+
+; ---------------------------------------------------------------------------
+; Set the values to set lines Aux 1 and Aux2 so
+; depending on which mode list matches the current
+; mode, we can enable the correct VIDC Enhancer.
+
+#set	Aux1Bitmask	= %00100000	; Define the bitmask for Aux 1
+#set	Aux2Bitmask	= %01000000	; Define the bitmask for Aux 2
+#set	Aux12Bitmask	= %01100000	; Define the bitmask for Aux 1 & 2
+
+; ---------------------------------------------------------------------------
+; Define the I2C base addresses for the WE 'Super' VIDC Enhancers
+
+#set	IICAddress_Watford_VIDC_Extender1	= &40
+#set	IICAddress_Watford_VIDC_Extender2	= &70
+
+;Define the WE VIDC base value common to all WE devices to pass on the IIC bus.
+#set	WEVIDCBaseValue				= &DC
+
+; ---------------------------------------------------------------------------
+; Define the type of VIDC Enhancer
+#set	WatfordType	= 2
+#set	AuxIOType	= 1
+#set	NativeType	= 0
+
+; ---------------------------------------------------------------------------
+; Define the minimum RISC OS clock speed in kHz
+#set	VIDCclkMIN 	= 24000
+; Define a maximum value for the overclocked oscillator...
+#set	VIDCclkMAX	= 60000
+
+; ---------------------------------------------------------------------------
+; define some constants for the clock speed detection code
+
+#set	uS_vidc	= 4
+#set	ticks	= 20
+
+; ---------------------------------------------------------------------------
+; Define AutoVIDC SWI's so we can compile without AutoVIDC being loaded.
+
+#set AutoVIDC_SetClock               = &59380
+#set AutoVIDC_DelegateControl        = &59381
+#set AutoVIDC_IsDelegated            = &59382
+#set AutoVIDC_IsOverClockingEnabled  = &59383
+#set AutoVIDC_ModeSyncPolarity       = &59384
+#set AutoVIDC_ReInit		     = &59385
+#set AutoVIDC_ClockAvailable         = &59386
+#set AutoVIDC_EnhancerPresent        = &59387
+#set AutoVIDC_EnhancerType	     = &59388
+
+#set XAutoVIDC_SetClock              = &59380 + &20000
+#set XAutoVIDC_DelegateControl       = &59381 + &20000
+#set XAutoVIDC_IsDelegated           = &59382 + &20000
+#set XAutoVIDC_IsOverClockingEnabled = &59383 + &20000
+#set XAutoVIDC_ModeSyncPolarity      = &59384 + &20000
+#set XAutoVIDC_ReInit		     = &59385 + &20000
+#set XAutoVIDC_ClockAvailable        = &59386 + &20000
+#set XAutoVIDC_EnhancerPresent       = &59387 + &20000
+#set XAutoVIDC_EnhancerType	     = &59388 + &20000
+
+#end

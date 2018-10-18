@@ -1,0 +1,150 @@
+;AutoVIDC module source - * commands
+;-----------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+.AutoVIDC_Commands
+	DCB	"AutoVIDC", 0		; Command-string
+	ALIGN
+	DCD	0			; command-code
+	DCD	0			; Information-word
+	DCD	0			; invalid-syntax-message
+	DCD 	helpme			; help-text
+
+	DCB	"AutoVIDCStatus", 0
+	ALIGN
+	DCD	VIDCStatus
+	DCD	0
+	DCD	0
+	DCD	helpAutoVIDCStatus
+
+	DCB	"AutoVIDCTogglePOST", 0
+	ALIGN
+	DCD	toggleVIDCPost
+	DCD	0
+	DCD	0
+	DCD	helpTogglePost
+
+	DCB	"AutoVIDCDisable", 0
+	ALIGN
+	DCD	disableVIDC
+	DCD	0
+	DCD	0
+	DCD	helpDisable
+
+	DCB	"AutoVIDCEnable", 0
+	ALIGN
+	DCD	enableVIDC
+	DCD	0
+	DCD	0
+	DCD	helpEnable
+
+	DCB	"AutoVIDCDisableOC", 0
+	ALIGN
+	DCD	disableOC
+	DCD	0
+	DCD	0
+	DCD	helpDisableOC
+
+	DCB	"AutoVIDCEnableOC", 0
+	ALIGN
+	DCD	enableOC
+	DCD	0
+	DCD 	0
+	DCD	helpEnableOC
+
+	DCB	"AutoVIDCAutoSelOff", 0
+	ALIGN
+	DCD	disableROcontrol
+	DCD	0
+	DCD	0
+	DCD	helpDisableROcontrol
+
+	DCB	"AutoVIDCAutoSelOn", 0
+	ALIGN
+	DCD	enableROcontrol
+	DCD	0
+	DCD	0
+	DCD	helpEnableROcontrol
+
+	DCB	"AutoVIDCIgnoreMap", 0
+	ALIGN
+	DCD	mapIgnore
+	DCD	0
+	DCD	0
+	DCD	helpIgnoreMap
+
+	DCB	"AutoVIDCIgnore", 0
+	ALIGN
+	DCD	SetIgnore
+	DCD	1 + (128<<16)		; min. + max. no. of parameters.
+	DCD	syntaxSet
+	DCD	helpIgnore
+
+	DCB	"AutoVIDCOCmap", 0
+	ALIGN
+	DCD	mapOC
+	DCD	0
+	DCD	0
+	DCD	helpmap
+
+	DCB	"AutoVIDCOCset", 0
+	ALIGN
+	DCD	SetOC
+	DCD	1 + (128<<16)		; min. + max. no. of parameters.
+	DCD	syntaxSet
+	DCD	helpSet
+
+	DCB	"AutoVIDCsetOCkHz", 0
+	ALIGN
+	DCD	setOCkHz
+	DCD	1 + (1<<16)		; min. + max. no. of parameters.
+	DCD	syntaxSetOCkHz
+	DCD	helpSetOCkHz
+
+	DCB	"AutoVIDC36map", 0
+	ALIGN
+	DCD	map36
+	DCD	0
+	DCD	0
+	DCD	helpmap
+
+	DCB	"AutoVIDC36set", 0
+	ALIGN
+	DCD	Set36
+	DCD 	1 + (128<<16)		; min. + max. no. of parameters.
+	DCD	syntaxSet
+	DCD	helpSet
+
+	DCB	"AutoVIDC25map", 0
+	ALIGN
+	DCD	map25
+	DCD	0
+	DCD	0
+	DCD	helpmap
+
+	DCB	"AutoVIDC25set", 0
+	ALIGN
+	DCD	Set25
+	DCD	1 + (128<<16)		; min. + max. no. of parameters.
+	DCD	syntaxSet
+	DCD	helpSet
+
+	DCB	"AutoVIDCVGAmap", 0
+	ALIGN
+	DCD 	mapVGA
+	DCD	0
+	DCD	0
+	DCD	helpmap
+
+	DCB	"Mode", 0
+	ALIGN
+	DCD	AutoVIDC_Mode
+	DCD	1 + (1<<16)		; min. + max. no. of parameters.
+	DCD	syntaxAutoVIDCMode
+	DCD	helpAutoVIDCMode

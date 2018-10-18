@@ -1,0 +1,23 @@
+;AutoVIDC module source - general functions...
+;---------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+.getCurrentMode
+	STMFD	R13!,{R14}
+	MOV	R0,#&87			; get the current Mode-number
+	SWI	XOS_Byte		; now in R2
+        LDMFD	R13!,{PC}
+
+.getClockSpeedInkHz
+	STMFD	R13!,{R14}
+	ADR	R0,vdublock			; Ok, lets grab the RISC OS clock speed
+	ADR	R1,vdublockresult
+
+	SWI	XOS_ReadVduVariables		; PRM 1-703 (172)
+        LDMFD	R13!,{PC}

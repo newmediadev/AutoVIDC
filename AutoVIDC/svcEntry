@@ -1,0 +1,190 @@
+;AutoVIDC module source - Service Call Handler
+;---------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; We need to run this if we haven't fully initialised and after that,
+; we only check when there is a Mode-change...
+
+;R0 - general purpose - check initialisation state.
+;R1 - Service entry reason code (&46)
+
+.AutoVIDC_Service
+	STMFD	R13!,{R0-R1,R14}
+
+	TEQ	R1, #Service_ModeChange		; Service_ModeChange
+	LDMNEFD	R13!,{R0-R1,PC}			; We're initialised and it's not a mode change so just return.
+
+	LDMFD	R13!,{R0-R1,R14}			; restore the registers from the stack
+
+; If we need to initiate a re-check of the mode lists, then we can branch here to do so, bypassing the initialisation and service checks.
+; R0 - General purpose
+; R1 - General purpose
+; R2 - Current Mode returned by OS and manipulated
+; R3 - Aux IO bitmask for setting AuxIO pins
+; R4 - Loop counter
+; R5 - Current Mode
+; R6 - MonitorType
+; R7 - Have we set the clock yet?
+; R8 - register used to force SVC mode and disable IRQ and FIQ bits
+; R9 - register used to force SVC mode and disable IRQ and FIQ bits
+
+.AutoVIDC_doService
+	STMFD	R13!,{R0-R9,R14}
+	LDRB	R0, VIDCEnable			; Are we enabled?
+	TEQ	R0, #1
+	LDMNEFD	R13!,{R0-R9,PC}		; No? we can exit here...
+
+	MOV	R7,#0
+; Disable IRQ and FIQ's
+; There's a bug in ExtASM - the line MRSEQ R8, CPSR wont compile with TAB characters in it.
+
+	TEQ	PC, PC				; 26/32-bit neutral code
+        MRSEQ   R8, CPSR                        ; to disable IRQ and FIQ's
+	MOVNE	R8, PC                          ; Thanks to Jon Abbott
+	MOV	R9, R8
+	ORREQ	R8, R8, #%11000000              ; for providing the code :-)
+	ORRNE	R8, R8, #&0C000000
+	MSREQ	CPSR_all, R8
+	TEQNEP	R8, #0
+ 	NOP					; let the registers sync
+
+;RISC OS <= 3.00 does not pass in MonitorType or Mode Number so we must get them another way...
+;Under RISC OS 2.xx, we don't care about the MonitorType as it doesn't map modes depending on the MonitorType.
+
+	MVN	R6,#0				; MonitorType should be 0 to 5, set to -1 for UNKNOWN...
+	LDR	R0,OS_Version
+	CMP	R0,#RISCOS3
+	BLT	_getModeRO2
+
+	MOV	R0,#1				; Read configured WimpMode, MonitorType and Sync.
+	SWI	XOS_ReadSysInfo			; (doesn't exist under RO2) PRM 1-722
+	MOV	R6, R1				; R1 should contain the MonitorType under RISC OS 3. Stick it in R6 for safe keeping
+
+._getModeRO2
+	BL	getCurrentMode
+
+; Check to see if we need to ignore this mode which is found in R2...
+	ADR	R0,ignoreModes
+	MOV	R5,R2				; Move the mode number into R5 for safe keeping
+
+; Now check if this mode has its Bit set
+	BL	_checkModeBit
+	MOVS	R0,R0,LSR R2			; shift Tablebit into Carryflag
+
+; Now the carry flag contains the Mode-bit
+; and is '1' for Ignore this mode
+	BCS	_cleanUp				; If the carry flag is set, we can exit.
+
+; If we're here then we need to check the mode to set the Enhancer to Enabled or Disabled.
+	MOV	R2,R5				;Restore the mode from R5 to R2
+
+; Setup which mode list and Aux bit to set and copy the current mode into R5.
+
+	ADR	R0,ModeListOC			; Load in the 36MHz Enhanced modes list
+	MOV	R3,#3				; Set which clock speed to use
+	MOV	R4,#0				; Set up a counter
+
+._svcLoop
+	ADD	R4,R4,#1			; Increment the loop counter by one
+
+; Is OverClocking enabled?
+	LDRB	R1,OCdisable			; Get the value for OverClocking disabled.
+	CMP	R4,#1				; Check if this is the first time around.
+	CMPEQ	R1,#1				; If it is, check to see if O/C is disabled
+	BEQ	_set36ModeList			; If disabled, skip to the next mode list...
+
+	BL	_checkModeBit
+	MOVS	R0,R0,LSR R2			; shift Tablebit into Carryflag
+	BCC	_skipClockSet
+
+;If we're here then the MODE bit is set so we need to set the clock...
+	MOV	R0,R3            		; Move the current clock speed (0-3) into R0
+	B	_callSetClock			; Set the clock...
+._skipClockSet
+
+; Depending on which iteration of the loop we're on, we need to set the ModeList lookup tables and the correct Aux bit to set and reset the value of the MODE from long term storage in R5...
+
+	CMP	R4, #4				; If we've been around 4 times we can finish looping now...
+	BEQ	_checkVIDCclockrate
+
+	CMP	R4, #3				; on the third loop through, prepare for the fourth loop by setting the MappedModes list as being the active list
+	BEQ	_setMappedModeList
+
+	CMP	R4, #2				; on the second loop through....
+	BEQ	_set25ModeList
+
+; After the first loop (for over-clocking) we then check the 36MHz mode list
+
+._set36ModeList
+	ADR	R0,ModeList36			; set the ModeList to the 36MHz one...
+	MOV	R3,#2				; set the Clock speed to use
+	MOV	R2,R5				; copy the MODE stored in R5 back to R2 for the next iteration.
+	B	_svcLoop
+
+._set25ModeList
+	LDR	R0,OS_Version			; Are we in RO2 or 3?
+	CMP	R0,#RISCOS3
+	ADRLT	R0,ModeList25RO2		; set the ModeList to RO2 25.175MHz...
+	ADRGE	R0,ModeList25			; set the ModeList to RO3 25.175MHz...
+	MOV	R3,#1				; set the Clock speed to use
+	MOV	R2,R5				; copy the MODE stored in R5 back to R2 for the next iteration.
+	B	_svcLoop
+
+._setMappedModeList
+	ADR	R0,MappedModes			; set the ModeList to the Mapped Modes list only used for (S)VGA MonitorTypes...
+	MOV	R3,#1				; set the Clock speed to use
+	MOV	R2,R5				; copy the MODE stored in R5 back to R2 for the next iteration.
+	CMP	R6,#3				; are we MonitorType 3
+	CMPNE	R6,#4				; if not are we MonitorType 4
+	BNE	_checkVIDCclockrate		; if we're here we don't need to loop over the VGA mapped modes list so go straight to checking the OS
+
+	CMP	R4, #3				; if we've not been round this code four times...
+	BEQ	_svcLoop
+
+;If we drop out here, we've looped through all the MODE lists and not found a matching mode.
+
+._checkVIDCclockrate
+	LDRB	R1,ROcontrol			; Is RISC OS control enabled?
+	TEQ	R1,#1
+	BNE	_cleanUp
+
+	BL	getClockSpeedInkHz
+	LDR	R2,[R1, #0]			; Grab the result from R1 and stick it in R2
+	TEQ	R2, #0				; If we're in RO2, we get a value of 0 back
+	BEQ	_cleanUp
+
+	MOV	R0,R2				; Let's see which clock number we need to select
+	BL	AutoVIDC_ClockAvailableSWI	; Should return -1, or 0-3
+
+._callSetClock
+	CMN	R0, #1				; If it's not -1 then we need to set the VIDC clock to the matching clock rate, the value of which is in R0 as 0, 1, 2 or 3 for 24MHz, 25.175MHz, 36Mhz or overclocked.
+	MOVNE	R7,#1
+	BLNE	AutoVIDC_SetClockSWI
+
+._cleanUp
+	TEQ	R7,#0				; if we haven't set the clock
+	MOVEQ	R0,#0				; default to the 24MHz clock
+	BLEQ	AutoVIDC_SetClockSWI		; and set it!
+
+	TEQ	PC, PC	                        ; enable IRQ and FIQ's
+	MSREQ	CPSR_all, R9
+	TEQNEP	R9, #0
+	NOP					; let the registers sync
+
+	LDMFD	R13!,{R0-R9,PC}
+
+._checkModeBit
+	STMFD	R13!,{R14}
+	AND	R2,R2,#127
+	ADD	R0,R0,R2,LSR #3			; Tablebase + (Mode /32*4)
+	BIC	R0,R0,#3			; Clear lowest 2 Bits. (now necessary here)
+	LDR	R0,[R0, #0]			; get part of Table
+	AND	R2,R2,#31			; mask shift amount
+	ADD	R2,R2,#1			; always shift one !!
+	LDMFD	R13!,{PC}

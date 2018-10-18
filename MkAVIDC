@@ -1,0 +1,63 @@
+;AutoVIDC module source - make file
+;----------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+;
+; With contributions from Jon Abbott
+; for RISC OS 2 compatibility and 26/32-bit neutrality
+; and Steve Harrison for base mode sync. polarity
+; derivation.
+;
+
+#strset AutoVIDC_version_string = "2.12"
+#strset AutoVIDC_date_string = "(11 Jul 2015)"
+#strset AutoVIDC_copyright_string = " © Andreas Barth 1995, Paul Vernon 2012-2015"
+
+#base 0
+#name "<Tmp$Dir>.Module.AutoVIDC"
+#type &FFA
+
+#area external_constants .readonly		;external readonly values
+ #include "<Tmp$Dir>.riscos.constants"
+#end
+#area global_constants .readonly		;external readonly values
+ #include "<Tmp$Dir>.AutoVIDC.constants"
+#end
+
+#include "<Tmp$Dir>.AutoVIDC.header"
+
+#area cmdtable .readonly			;* command help
+ #include "<Tmp$Dir>.AutoVIDC.cmdTable"
+ DCD 0
+ #include "<Tmp$Dir>.AutoVIDC.cmdHelp"
+ ALIGN
+#end
+
+#area SWItable .readonly			;SWI names
+ #include "<Tmp$Dir>.AutoVIDC.SWI_Names"
+ DCB 0
+ ALIGN
+#end
+; There's a bug in extAsm where LDR's aren't auto-expanded correctly when the vars file is placed at the end of the code so moving it before the code should help.
+#include "<Tmp$Dir>.AutoVIDC.vars"
+
+#include "<Tmp$Dir>.AutoVIDC.SWI_Table"
+
+#include "<Tmp$Dir>.AutoVIDC.init"
+#include "<Tmp$Dir>.AutoVIDC.utils.clkDetect"
+#include "<Tmp$Dir>.AutoVIDC.utils.funcs"
+
+#include "<Tmp$Dir>.AutoVIDC.svcEntry"
+#include "<Tmp$Dir>.AutoVIDC.cmdEntry"
+#include "<Tmp$Dir>.AutoVIDC.SWI_Funcs"
+
+
+#include "<Tmp$Dir>.AutoVIDC.exit"
+
+#include "<Tmp$Dir>.AutoVIDC.strings"
+#include "<Tmp$Dir>.AutoVIDC.modeLists"

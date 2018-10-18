@@ -1,0 +1,71 @@
+;AutoVIDC module source - * command help strings
+;-----------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+.helpme
+	DCB	"AutoVIDC", 9
+	DCB	AutoVIDC_version_string, 13
+	DCB	"Controls the VIDC clock speed.", 0
+
+.helpmap
+	DCB	"AutoVIDCXXmap shows the map of the current settings for each mode.", 13
+	DCB	" The Format is 'Map: |<Modenumber|>+ |<Modenumber|>- ...' for all 128 Modes.", 13
+	DCB	" The + and - shows whether the mode is enhanced or not.", 13
+	DCB	" NOTE: The VGA map is read only.", 0
+
+.helpIgnore
+	DCB	"AutoVIDCIgnore |<Modenumber|>|<+||-|> [...] changes the settings for one or "
+	DCB	"more modes to '+'=Ignore or '-'=Do not Ignore.", 13, 0
+
+.helpIgnoreMap
+	DCB	"AutoVIDCIgnoreMap shows the map of the current settings for each mode to be ignored.", 13, 0
+
+.helpSet
+	DCB	"AutoVIDCXXset |<Modenumber|>|<+||-|> [...] changes the setting for one or "
+	DCB	"more modes to '+'=ON or '-'=OFF.", 13
+	DCB	" NOTE: The VGA map is read only.", 0
+
+.helpDisable
+	DCB	"AutoVIDCDisable turns the VIDC Enhancer off", 0
+
+.helpEnable
+	DCB	"AutoVIDCEnable turns the VIDC Enhancer on.", 0
+
+.helpDisableOC
+	DCB	"AutoVIDCDisableOC turns off the VIDC over-clocking facilities.", 0
+
+.helpEnableOC
+	DCB	"AutoVIDCEnableOC turns on the VIDC over-clocking facilities.", 0
+
+.helpSetOCkHz
+	DCB	"AutoVIDCsetOCkHz sets the speed of the over-clocking oscillator in kHz.", 0
+
+.helpEnableROcontrol
+	DCB	"AutoVIDCAutoSelOn turns on RISC OS controlled clock selection of a VIDC Enhancer.", 0
+
+.helpDisableROcontrol
+	DCB	"AutoVIDCAutoSelOff turns off RISC OS controlled clock selection of a VIDC Enhancer.", 0
+
+.helpAutoVIDCStatus
+	DCB	"AutoVIDCStatus returns information about the Monitor, Mode and VIDC Enhancer.", 0
+
+.helpTogglePost
+	DCB	"The VIDC POST check can be toggled on or off as some VIDC Enhancers trigger a POST fail at power on.", 0
+
+.helpAutoVIDCMode
+	DCB	"Changes the screen mode", 0
+
+.syntaxSet
+	DCB	"use *AutoVIDCXXset |<Modenumber|>|<+||-|> [...]", 0
+
+.syntaxSetOCkHz
+	DCB	"use *AutoVIDCsetOCkHz |<speed in kHz|>", 0
+
+.syntaxAutoVIDCMode
+	DCB	"Syntax: *Mode [|<mode|>]", 0

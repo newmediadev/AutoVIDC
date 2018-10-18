@@ -1,0 +1,61 @@
+;AutoVIDC module source - MODE lookup tables
+;-------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; Here are the Mode-Lists for modes that AutoVIDC should know about.
+; Lowest bit is for Mode 0, going up, every line has 32 bits and modes.
+
+; Ignore these modes.
+;		     31-----------------------------0
+.ignoreModes	DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+
+; Over-clocking oscillator modes.
+;		     31-----------------------------0
+.ModeListOC	DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+
+; 36MHz oscillator modes.
+;		     31-----------------------------0
+.ModeList36	DCD %11100000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+
+; 25.175MHz oscillator normal modes under RISC OS 3.
+;		     31-----------------------------0
+.ModeList25	DCD %00011110000000000000000000000000
+		DCD %00000000000000000000111000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+
+; 25.175MHz oscillator normal modes under RISC OS 2.
+; RISC OS 2 has different screen geometry and refresh rates
+; for the modes suitable for the VGA monitortype and they
+; don't require the 25.175MHz oscillator by default.
+
+;		     31-----------------------------0
+.ModeList25RO2	DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000
+
+; We need to describe the mapped modes that RISC OS 3 maps
+; to VGA modes when the monitor type is 3 or 4.
+
+; 25.175MHz oscillator mapped modes.
+;		     31-----------------------------0
+.MappedModes	DCD %00000000000000001111111111111111
+		DCD %00000000000000000111000000000000
+		DCD %00000000000000000000000000000000
+		DCD %00000000000000000000000000000000

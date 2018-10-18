@@ -1,0 +1,35 @@
+;AutoVIDC module source - Module Header
+;--------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Andreas Barth (1995)
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+.AutoVIDC_header
+	DCD 0				; Start
+	DCD AutoVIDC_Initialise		; Initialisation
+	DCD AutoVIDC_Finalise		; Finalisation
+	DCD AutoVIDC_Service		; Service-Calls
+	DCD AutoVIDC_Title		; Title-String
+	DCD AutoVIDC_Help		; Help String
+	DCD AutoVIDC_Commands		; Keywords & help table
+	DCD &59380			; SWI chunk base number - Allocated by ROOL - Do not change!
+	DCD AutoVIDC_SWI		; SWI Handler code
+	DCD AutoVIDC_SWI_Names		; SWI Decoding Table
+	DCD 0				; SWI Decoding Code
+	DCD 0				; Messages
+	DCD AutoVIDC_Flags		; Module flags
+
+.AutoVIDC_Title
+	DCB "AutoVIDC", 0
+
+.AutoVIDC_Help
+	DCB "AutoVIDC", 9
+	DCB AutoVIDC_version_string," ",AutoVIDC_date_string," ",AutoVIDC_copyright_string, 0
+	ALIGN
+
+.AutoVIDC_Flags
+	DCD	1			; 1=32-bit compatible, YAY!

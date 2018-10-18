@@ -1,0 +1,75 @@
+#set Module_ReInit      = 3
+#set Module_Delete      = 4
+#set Module_DescribeRMA = 5
+#set Module_Claim       = 6
+#set Module_Free        = 7
+#set Module_Tidy        = 8
+#set Module_Clear       = 9
+#set Module_Lookup      = 18
+#set Module_Enumerate   = 20
+
+#set Sprite_ReadArea    = 8
+
+#set FSControl_SelectFS = 14
+
+; ************************ Service numbers ***************************
+#set Service_Reset            = &27
+#set Service_ModeChange       = &46
+#set Service_PreModeChange    = &4D
+#set Service_ModeExtension    = &50
+#set Service_WimpReportError  = &57
+#set Service_IdentifyFormat   = &6B
+#set Service_DiscDismounted   = &7D
+#set Service_ShutdownComplete = &80
+
+; ******************** Hardware vector numbers ***********************
+#set Vector_UndefinedInstr   = 1
+#set Vector_SWI              = 2
+#set Vector_PrefetchAbort    = 3
+#set Vector_DataAbort        = 4
+#set Vector_AddressException = 5
+
+; ******************** Software vector numbers ***********************
+#set Vector_FileV   = &8
+#set Vector_ArgsV   = &9
+#set Vector_BGetV   = &A
+#set Vector_BPutV   = &B
+#set Vector_GBPBV   = &C
+#set Vector_FindV   = &D
+#set Vector_EventV  = &10
+#set Vector_InsV    = &14
+#set Vector_TickerV = &1C
+
+; *********************** Filecore variables **************************
+#set DiscRecSig             = 60      ; length of disc record
+#set MiscOp0_DiscRecSig     = 32      ; length of disc record for MiscOp 0
+#set DiscRecStart           = 4       ; start of the header on a new map disc
+#set OldName0               = &F7     ; char 1 of disc name on a old map disc
+#set OldName1               = &1F6    ; char 1 of disc name on a old map disc
+#set OldSize                = &FC     ; disc size / 256
+#set Max_File_Length        = 256     ; max length of path RISC OS supports
+#set BootBlockDiscRec       = &1C0    ; offset in the boot record of the disc record
+#set Error_Sector_CRC       = &22     ; FileCore return error codes PRM2-280
+#set Error_ID_CRC           = &23
+#set Error_Sector_Not_Found = &10
+#set Error_Head_Positioning = &04
+#set Error_Bad_Parameters   = &A1     ; PRM2-600
+#set Error_Write_Protected  = &C9
+
+#set Floppy_FIQ             = 1<<1    ; FileCore descriptor block bit flag
+#set ADFS_Sector_Aligned    = 1<<9    ; FileCore descriptor block bit flag
+#set New_Style_Errors       = 1<<10   ; FileCore descriptor block bit flag
+#set DefectList_Op          = 1<<4    ; FileCore R1 bit indicating a defect list
+#set ScatterList_Op         = 1<<5    ; FileCore R1 bit marking a scatter list
+#set Background_Op          = 1<<8    ; FileCore R1 bit marking a background transfer
+#set Scatter_List_End       = 65536   ; used to check for scatter list wrapping
+
+
+; ******************** DiscRec offset variables ***********************
+#set DR_log2secsize         = 0       ; disc record offset for log2secsize
+#set DR_secspertrack        = 1       ; disc record offset for secspertrack
+#set DR_heads               = 2       ; disc record offset for heads
+#set DR_density             = 3       ; disc record offset for density
+#set DR_lowsector           = 8       ; disc record offset for lowsector
+#set DR_root                = 12      ; disc record offset for root
+#set DR_discsize            = 16      ; disc record offset for disc size

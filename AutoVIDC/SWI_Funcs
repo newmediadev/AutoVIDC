@@ -1,0 +1,470 @@
+;AutoVIDC module source - SWI Call implementation
+;------------------------------------------------
+;
+;VIDC Enhancer software control
+;For software controlled VIDC Enhancers
+;
+;Author: Paul Vernon (Retro-Kit) (2012-2013)
+;   www: http://www.retro-kit.co.uk
+
+; Implementation of the SWI calls.
+
+; A SWI call allowing a calling application to set the oscillator to one of 4 values, 0 - 3 thereby setting the VIDC clock speed.
+
+.AutoVIDC_SetClockSWI
+	TEMP	R10-R12
+	STMFD	R13!,{R1-R9,R14}
+
+	TEQ	PC, PC				; 26/32-bit neutral code
+        MRSEQ   R8, CPSR                        ; to disable IRQ and FIQ's
+	MOVNE	R8, PC                          ; Thanks to Jon Abbott
+	MOV	R9, R8
+	ORREQ	R8, R8, #%11000000              ; for providing the code :-)
+	ORRNE	R8, R8, #&0C000000
+	MSREQ	CPSR_all, R8
+	TEQNEP	R8, #0
+	NOP					; let the registers sync
+
+; Is the VIDC Enhancer required?
+
+	LDRB	R1,EnhancerNeeded		; Is a VIDC Enhancer needed?
+	TEQ	R1,#1
+	BNE	_useNativeEnhancer		; No? Use the Acorn code
+	LDREQB	R1,EnhancerType			; Yes? What type of enhancer?
+	TEQEQ	R1,#AuxIOType			; Is is the Aux IO type?
+	BNE	_useWEVIDCEnhancer		; No? Use the WE code
+	BEQ	_useAuxVIDCEnhancer		; Yes? Use the Aux IO code
+
+; If we're here, we need to set the clock using the VIDC registers, not AuxIO.
+._useNativeEnhancer
+	CMP	R0,#0
+	BLT	_returnNativeClock
+	CMPGE	R0,#3
+	BGE	_returnNativeClock
+
+	BL	AutoVIDC_ClockAvailableSWI
+	MOV	R3,R1
+
+._SetNativeClock_SWI
+	MOV	R4,R0				; Save R0 in R4
+	MVN	R0,#0				; We want the current Sync. Polarity
+	BL	AutoVIDC_ModeSyncPolaritySWI	; Pass Mode (R0) into AutoVIDC_GetSyncPolarity
+	MOV	R1, R0  			; Stick the result in R1
+
+	MOV	R0, R4				; Restore R0 from R4
+
+; R0 - VIDC clock speed flags
+; R1 - Sync.Polarity
+; R3 - VIDC clock speed in kHz
+
+	MOV	R2,#VIDCLatch			; Let's have a look at the VIDC registers
+	AND	R4,R4,#%11110000 		; Wipe out the VIDC clock registers
+	MOV	R1,R1, LSL#2			; Shift the Sync. Polarity 2 left
+	ADD	R0,R0,R1 			; Add it to the VIDC clock parameter.
+	EOR	R4,R4,R0			; Set the new VIDC clock
+	STRB	R4,[R2,#0]			; Write it to the VIDC register
+
+	MOV	R0,R3
+	BL	storeVIDCclockSpeed
+
+; Finally, we need to return the clock setting based on what we just stuck into
+; the VIDCclk registers
+._returnNativeClock
+	BL	getClockSpeedInkHz
+	LDR	R3,[R1, #0]			; Grab the result from R1 and stick it in R3
+	TEQ	R3,#0				; If we're in RO2, we get a value of 0 back
+	BEQ	_setClockCleanUp
+
+	MVN	R1, #0				; Compare what the VIDC chip reports against the standard clock rates of 24, 25.175 and 36MHz.
+
+	MOV	R0,R3
+	BL	AutoVIDC_ClockAvailableSWI
+
+	B	_setClockCleanUp
+
+._useAuxVIDCEnhancer
+	TEQ	R0,#0				; Check the user input
+	MOVEQ	R4,#0				; Is it 0? If so, set the AuxIO bit to 0
+	BEQ	_SetAuxClock_SWI
+
+	TEQ	R0,#1
+	MOVEQ	R4,#Aux2Bitmask			; If it's 1, set Aux 2 bit
+	BEQ     _SetAuxClock_SWI
+
+	TEQ	R0,#2
+	MOVEQ	R4,#Aux1Bitmask			; If it's 2, set Aux 1 bit
+	BEQ	_SetAuxClock_SWI
+
+	TEQ	R0,#3
+	MOVEQ	R1,#0				; If it's 3, check if over-clocking is enabled
+	LDREQB	R2,OCdisable
+	TEQEQ	R1,R2
+	MOVEQ	R4,#Aux12Bitmask		; If it's enabled. Set both Aux 1 and 2
+	BNE	_returnAuxClock			; Any other user input value, just return the current value.
+
+._SetAuxClock_SWI
+	MOV	R6,R0,LSL#2			; Grab the detected clock speed...
+	ADR	R1,detectedClockSpeeds
+	LDR	R5,[R1,R6]			; put it in R5...
+
+	MOV	R6,#Aux12Bitmask		; Set up both lines to clear.
+	MOV	R1,#LatBShadow			; Load address of AuxIO-contents
+	MOV	R2,#LatchB			; Load address of AuxIO-Hardware
+
+	LDRB	R3,[R1,#0]			; Load Aux-Shadow
+	BIC	R3,R3,R6			; clear both Aux 1 and Aux 2
+	ORR	R3,R3,R4			; set Aux-Bit.
+	STRB	R3,[R1,#0]			; set Aux-Shadow
+	STRB	R3,[R2,#0]			; set Aux-Hardware
+
+	MOV	R0,R5
+	BL	storeVIDCclockSpeed
+
+._returnAuxClock
+; Finally, we want to output the current VIDC clock based on the AuxIO line values
+
+	MOV	R1,#LatBShadow			; Load address of AuxIO-contents
+	LDRB	R3,[R1,#0]			; Load Aux-Shadow
+
+	AND	R2,R3,#Aux12Bitmask		; apply a bitmask to the content Aux-Shadow
+
+; Map the actual hardware to an abstracted value of 0, 1, 2 or 3 for 24, 25.175, 36 and overclocked clocks
+	MOV	R0,#0
+	TEQ	R2,#Aux12Bitmask		; Are Aux 1 & 2 active?
+	MOVEQ	R0,#3
+	TEQ	R2,#Aux2Bitmask			; Is Aux 2 active?
+	MOVEQ	R0,#1
+	TEQ	R2,#Aux1Bitmask			; Is Aux 1 active?
+	MOVEQ	R0,#2
+
+	B	_setClockCleanUp
+
+._useWEVIDCEnhancer
+	MOV	R1,#WEVIDCBaseValue
+	LDRB	R2,IIC25MHzFitted		; If the 25MHz clock isn't present,
+	TEQ	R2,#1
+	ORREQ	R1,R1,#&20			; If the 25MHz clock is there, set the 6th bit.
+	ADDNE	R3,R1,#3
+	ADDEQ	R3,R1,#2
+	TEQ	R0,#1				; If the 25MHz clock is present
+	BEQ     _SetWEClock_SWI                  ; Set the clock...
+
+	TEQ	R0,#0				; Check the user input
+	ADDEQ	R3,R1,#3			; Set the 24MHz clock
+	BEQ	_SetWEClock_SWI
+
+	TEQ	R0,#2				; Set the 36MHz clock
+	ADDEQ	R3,R1,#0
+	BNE	_returnWEClock			; Any other user input value, just return the current clock setting
+
+._SetWEClock_SWI
+; R0, R1, R4, R6 and R7 are spare at this point...
+	TEQ	R2,#0				; If the 25Mhz clock isn't there
+	TEQEQ	R0,#1				; and the 25MHz clock is selected
+	SUBEQ	R0,R0,#1			; drop to the 24MHz clock.
+
+	MOV	R6,R0,LSL#2			; Grab the detected clock speed...
+	ADR	R1,detectedClockSpeeds
+	LDR	R5,[R1,R6]			; put it in R5...
+
+	MVN	R0,#0				; We want the current MODE Sync. Polarity
+	BL	AutoVIDC_ModeSyncPolaritySWI	; Pass Mode (R0) into AutoVIDC_ModeSyncPolarity
+	MOV	R7, R0  			; Stick the result in R7
+
+; Then merge in the Sync. Polarity and its inverse into the value in R3
+; R7 now contains the Sync. Polarity which will be 0 - 3
+; R0 and R1 are still spare.
+	MVN	R6,R7				; Invert R7
+	AND	R6,R6,#3
+  	AND	R3,R3,#%110011			; Wipe out the bits we need to merge in.
+	MOV	R6,R6, LSL#6
+	MOV	R7,R7, LSL#2
+	ORR	R3,R3,R6
+	ORR	R3,R3,R7
+
+	LDRB	R6,IIC25MHzFitted		; If the 25MHz clock isn't present,
+	TEQ	R6,#0				; Set the 24MHz clock
+	ORRNE	R3,R3,#&20			; If the 25MHz clock is there, set the 6th bit.
+	ORREQ	R3,R3,#&30
+
+; Now lets stick it on the IIC bus :-)
+	LDR	R6,WEIICAddress
+	LDR	R1,WEEnhancerRMA
+	ADD	R0,R6,#0			; Reset R0 to write to the Enhancer
+	STR	R3,[R1, #0]			; WEEnhancerRMA
+	MOV	R2,#1
+	SWI	IIC_Control			; Write to the WE VIDC Enhancer
+
+	MOV	R0,R5
+	BL	storeVIDCclockSpeed
+
+._returnWEClock
+	LDR	R6,WEIICAddress
+	ADD	R0,R6,#1			; Reset R0 to write to the Enhancer
+	LDR	R1,WEEnhancerRMA
+	MOV	R2,#1
+	SWI	IIC_Control			; Write to the WE VIDC Enhancer
+
+	LDRB	R2,[R1,#0]
+        AND	R1,R2,#3
+
+        TEQ	R1,#3
+        MOVEQ	R0,#0
+
+        TEQ	R1,#2
+        MOVEQ	R0,#1
+
+        TEQ	R1,#0
+        MOVEQ	R0,#2
+
+._setClockCleanUp
+ 	TEQ	PC, PC	                        ; enable IRQ and FIQ's
+	MSREQ	CPSR_all, R9
+	TEQNEP	R9, #0
+	NOP					; let the registers sync
+
+	LDMFD	R13!,{R1-R9, R14}
+	LOCK	R10-R12
+.SWI_exit
+	TEQ	PC, PC
+	MOVEQ	PC, R14
+	MOV	PC, R14
+
+; ---------------------------------------------------------------------------
+; a small function to remove replicated code pass R0 in representing the clock speed in kHz to be stored in ZP.
+.storeVIDCclockSpeed
+	TEMP	R10-R12
+	STMFD	R13!,{R1, R14}
+	LDR	R1,OS_Version			; If we're >= RO3...
+	CMP	R1,#RISCOS3
+	MOVGE	R1,#VIDCclockspeed
+	STRGE	R0,[R1]				; ..store the VIDC clock speed in the correct zero page location
+	LOCK	R10-R12
+	LDMFD	R13!,{R1, PC}
+
+; ---------------------------------------------------------------------------
+; A SWI to effectively enable and disable AutoVIDC from manipulating the VIDC Enhancers thereby delegating control to the calling program.
+
+.AutoVIDC_DelegateControlSWI
+	TEMP	R2-R6
+	STMFD	R13!,{R0-R1,R14}
+
+	TEQ	R0,#0
+	TEQNE	R0,#1
+	BNE	_exitDelegateControlSWI		; If the user input isn't 0 or 1, ignore the call
+
+	MOV	R1,#1
+	EOR	R0,R0,R1			; invert R0 to set VIDCEnable%
+	LDRB	R1,EnhancerType
+	TEQ	R1,#NativeType
+	BEQ	_exitDelegateControlSWI
+
+	STRB	R0,VIDCEnable
+	BL	AutoVIDC_ReInitSWI
+._exitDelegateControlSWI
+	LDMFD	R13!,{R0-R1, R14}
+	LOCK	R2-R6
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Check to see if AutoVIDC is in control or not?
+
+.AutoVIDC_IsDelegatedSWI
+	STMFD	R13!,{R1,R14}
+	MOV	R1,#1
+	LDRB	R0,VIDCEnable			; Grab the current state
+	EOR	R0,R0,R1			; invert VIDCEnable% and stick it in R0
+	LDMFD	R13!,{R1, R14}
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Check to see if over-clocking is enabled or not?
+
+.AutoVIDC_IsOverClockingEnabledSWI
+	STMFD	R13!,{R1,R14}
+	MOV	R1,#1
+	LDRB	R0,OCdisable			; Grab the current state
+	EOR	R0,R0,R1			; invert OCdisable% and stick it in R0
+	LDMFD	R13!,{R1, R14}
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Return or derive the Sync. Polarity for the mode passed in.
+
+.AutoVIDC_ModeSyncPolaritySWI
+	STMFD	R13!,{R1-R7,R14}
+
+	MOV	R6, R0
+	MOV	R7, R1
+
+	LDR	R1,OS_Version			; If we're < RO3...
+	CMP	R1,#RISCOS3
+	MOVLE	R0,#0				; Always return a sync polarity value of 0 in RO2.
+	BLE	_exitModeSyncPolaritySWI
+
+	CMN	R6, #1				; If we're RO3 and we want to know the current mode...
+	BEQ	_getCurrentSync
+	CMP	R6, #47				; If we're RO3 and a pre-configured RO mode
+	BLE	_selectSync			; we need to move on to derive the Sync polarity
+
+;If we're here then we're asking about a custom mode so we can use Service_ModeExtension (&50) via OS_ServiceCall
+
+	MOV	R1, #Service_ModeExtension	; Set up the service call reason
+	MOV	R2, R6				; Set up the mode to ask about
+	MOV	R3, R7				; Set up the monitor type to ask about.
+	SWI	XOS_ServiceCall			; Get the VIDC mode list for the mode
+
+	TEQ	R1,#0     			; If the service call doesn't respond
+	BNE	_selectSync			; we're in a native mode so skip the processing...
+	LDR	R6, [R3, #4]			; Get the base mode for the current mode.
+
+	LDR	R0, [R3, #0]			; Get the VIDC List type
+	TEQ	R0, #1
+	BNE	_selectSync			; If the list type isn't "Type 1" we need to skip processing it.
+
+; If we're here then we have a valid VIDC list of Type 1 and we need to process it.
+; By processing it, we need to see if there are Sync. Polarity details in the extended part of the list as per PRM 1-621 - 1-623.
+
+	MVN	R0, #0				; Set up the R0 register
+	MOV	R1, #0				; Set up the counter
+	MOV	R2, #1				; Set up the part indicator
+._loopVIDCList
+
+        LDR	R4, [R3, R1]			; What is the content of the VIDC list at this point?
+	TEQ	R2,#2   			; Are we in the second section?
+	BNE	_nextItem                        ; No, OK, skip to the next item.
+
+; If we're here then we're in the "extended parameters" and we need to look for the Sync. Polarity.
+
+	MOV	R5, R4, LSR #24			; Right shift 24-bits
+	AND	R5, R5, #&FF			; Wipe out all other bits
+	TEQ	R5, #1				; Is the remaining data 1?
+	ANDEQ	R0, R4, #3			; Yes, so return the data
+	BEQ	_exitModeSyncPolaritySWI	; Exit with the Sync. Polarity in R0.
+
+._nextItem
+	CMN	R4, #1
+	ADDNE	R1, R1, #4
+        BNE	_loopVIDCList
+
+        ADD	R2,R2,#1
+        CMP	R2, #3
+        ADDLT	R1,R1,#4
+        BLT	_loopVIDCList
+
+;If we're here, we have a base mode but no Sync.Polarity set in the Extended parameters so process the base mode to derive the Sync.Polarity
+
+._selectSync
+;
+; Returns R0 with with the Sync.Polarity set. (call for new hardware only)
+;
+; The following code was provided by Steve Harrison
+; as part of the solution to determine a mode's Sync Polarity.
+
+	MOV	R0,R6				; Move the base mode into R0
+
+;first check the modes which *always* use a fixed sync setting whatever the monitortype
+	CMP	R0, #25
+	RSBGTS	R14, R0, #28			;if mode >25 is 28-mode >=0?
+	MOVGE	R0, #3 				;sync 3 is always used for VGA modes 25-28
+	BGE	_exitModeSyncPolaritySWI
+
+	CMP	R0,#29
+	RSBGTS	R14,R0,#32			;if mode >29 is 32-mode >=0? (allows for Mode32 in future ;-)
+	MOVGE	R0,#0				;sync 0 is always used for SVGA modes 29-31
+	BGE	_exitModeSyncPolaritySWI
+
+	CMP	R0,#37
+	RSBGTS	R14,R0,#43			;if mode >37 is 43-mode >=0?
+	MOVGE	R0, #2				;sync 2 is always used for modes 37-43
+	BGE	_exitModeSyncPolaritySWI
+
+	MOV	R0, R7				;now check the monitortypes and select the required default sync setting for these (other than in the above modes)
+	TEQ	R0, #3
+	TEQNE	R0, #4
+	MOVEQ	R0, #2				;return 2 for remaining modes on monitortypes 3 and 4
+	MOVNE	R0, #0				;otherwise return 0 for remaining modes on monitortypes 0,1,2 and 5 (LCD) and any other types...
+	B	_exitModeSyncPolaritySWI
+
+._getCurrentSync
+	MOV	R1,#VIDCControlCopy		; Take a look at ZP &1584
+	LDR	R0,[R1]				; Grab the contents of &1584
+	MOV	R0,R0,LSR#11			; Shift right 11 bits
+	AND 	R0,R0,#3                        ; return the bitmasked data
+
+._exitModeSyncPolaritySWI
+	LDMFD	R13!,{R1-R7, R14}
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Re-Initialise the AutoVIDC module
+
+.AutoVIDC_ReInitSWI
+	STMFD	R13!,{R14}
+	BL	AutoVIDC_doService
+	LDMFD	R13!,{R14}
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Check to see if the clock is available.
+; R0 = value passed in/out
+; R1 = current clock speed to test for
+; R2 = list of all clock speeds available
+; R3 = counter
+
+.AutoVIDC_ClockAvailableSWI
+	STMFD	R13!,{R2-R3,R14}
+
+	MOV	R3,#0
+	ADR	R2,detectedClockSpeeds
+	LDR	R1,[R2]
+
+._isClockPresent
+	CMP	R0,#3				; If R0 <=3
+	BLE	_checkCounter			; Yes? Ok check the entries rather than matching clock speeds!
+
+	TEQ	R0,R1				; Match the clock speed....
+	BEQ	_clockPresent			; Matches? finish!
+	B	_getNextClocktoCheck		; Doesn't match? Move to the next...
+
+._checkCounter
+	TEQ	R0,R3				; Are we looking at the right entry?
+	BNE	_getNextClocktoCheck		; No? Move on?
+	TEQ	R1,#0				; Yes? Is the current entry 0?
+	BNE	_clockPresent			; No? We have the clock speed available
+	MVNEQ	R0,#0				; Yes? That entry isn't available.
+	B	_exitClockAvailable
+
+._getNextClocktoCheck
+	ADD	R3,R3,#1			; Add one to the counter.
+	LDR	R1,[R2, #4]!			; Load the next clock into R1
+	CMP	R3,#4				; Have we been around 3 times?
+	BLT	_isClockPresent			; No, loop back, yes move on.
+
+	MVN	R0,#0				; If we've been around 3 times, there is no clock available...
+	B	_exitClockAvailable
+
+._clockPresent
+	MOV	R0,R3				; If the clock is present, return the current entry position (0-3)
+
+._exitClockAvailable
+	LDMFD	R13!,{R2-R3,R14}
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Returns whether or not an enhancer has been detected by the AutoVIDC module
+
+.AutoVIDC_EnhancerPresentSWI
+	LDRB	R0,EnhancerDetected
+	B	SWI_exit
+
+; ---------------------------------------------------------------------------
+; Returns the type of enhancer that has been detected by the AutoVIDC module
+
+; 0 - Native Acorn (A540, A30x0, A4000, A5000)
+; 1 - AUX I/O controlled (A300/400, A400/1, A3000) (AtomWide, Beebug, Andreas Barth, Retro-Kit)
+; 2 - I2C controlled (A300/400, A400/1, A3000) (Watford Electronics)
+
+.AutoVIDC_EnhancerTypeSWI
+	LDRB	R0,EnhancerType
+	B	SWI_exit
