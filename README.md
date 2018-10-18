@@ -3,6 +3,11 @@
 Introduction
 ============
 
+AutoVIDC is a re-locatable module used to control a VIDC Enhancer that provides alternative clock frequencies for the Acorn VIDeo Controller chip called VIDC which is responsible for the video output in the Archimedes range of computers.
+By using faster VIDC clock speeds delivered by a VIDC Enhancer, higher screen resolutions and refresh rates can be achieved by the Archimedes.
+
+The software is intended to work with RISC OS 2.0x and RISC OS 3.xx to provide the ability to control up to two standard VIDC Enhancers at the same time or a single three oscillator VIDC enhancer. The latter can be used to drive the VIDC chip at up to four different clock speeds when including the original Archimedes VIDC clock signal.
+
 DEVELOPMENT
 ===========
 
