@@ -32,7 +32,7 @@ The code is best compiled using the extASM assembler for RISC OS.
 
 ### Released version
 
-Latest version is 2.12
+Latest version is 2.12 which is available [for download on the retro-kit website](https://www.retro-kit.co.uk/AutoVIDC)
 
 ### Notes
 
